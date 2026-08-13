@@ -1,0 +1,999 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WhipCheck — crack it until it's right</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<style>
+  :root {
+    --bg-0: #100d0a;
+    --bg-1: #1a1510;
+    --panel: #211a13;
+    --panel-2: #2a2118;
+    --border: #3d3120;
+    --border-lit: #5c4527;
+    --cream: #f1e6d2;
+    --cream-dim: #a8977f;
+    --leather: #8b5a2b;
+    --leather-dark: #4a2f16;
+    --amber: #e8a33d;
+    --amber-soft: #f0c078;
+    --crack-red: #d9541f;
+    --font-display: "Cinzel", "Georgia", serif;
+    --font-body: "Inter", system-ui, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body { cursor: auto; }
+
+  /* Custom whip cursor only kicks in once we detect real mouse input —
+     touch devices never get cursor:none, so nothing looks broken there. */
+  html.whip-cursor, html.whip-cursor * { cursor: none !important; }
+  html.whip-cursor input, html.whip-cursor textarea { cursor: text !important; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background:
+      radial-gradient(ellipse 900px 600px at 50% -10%, #2a2015 0%, transparent 60%),
+      radial-gradient(ellipse 1200px 800px at 50% 110%, #1c1610 0%, transparent 60%),
+      var(--bg-0);
+    color: var(--cream);
+    font-family: var(--font-body);
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 56px 20px 80px;
+    overflow-x: hidden;
+  }
+
+  #whipCanvas {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 999;
+    touch-action: none;
+  }
+
+  .touch-hint {
+    position: fixed;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-12px);
+    background: var(--panel-2);
+    border: 1px solid var(--crack-red);
+    color: var(--cream);
+    font-size: 0.78rem;
+    padding: 9px 16px;
+    border-radius: 20px;
+    z-index: 1000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    white-space: nowrap;
+    box-shadow: 0 8px 24px -8px rgba(0,0,0,0.6);
+  }
+
+  .touch-hint.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  .wrap {
+    width: 100%;
+    max-width: 660px;
+    position: relative;
+    z-index: 1;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 36px;
+  }
+
+  .rope {
+    width: 130px;
+    height: auto;
+    margin: 0 auto 14px;
+    display: block;
+    opacity: 0.9;
+  }
+
+  h1 {
+    font-family: var(--font-display);
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    font-size: 2.4rem;
+    background: linear-gradient(180deg, var(--amber-soft), var(--amber) 60%, var(--leather));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    margin: 0 0 8px;
+  }
+
+  .tagline {
+    color: var(--cream-dim);
+    font-size: 0.88rem;
+    letter-spacing: 0.02em;
+    font-family: var(--font-body);
+  }
+
+  .card {
+    background: linear-gradient(180deg, var(--panel), var(--bg-1));
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 26px;
+    margin-bottom: 22px;
+    box-shadow: 0 20px 50px -20px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.02);
+  }
+
+  label {
+    display: block;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--cream-dim);
+    margin-bottom: 8px;
+    font-family: var(--font-mono);
+  }
+
+  input[type="password"], input[type="text"], textarea, select {
+    width: 100%;
+    background: #0c0a08;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--cream);
+    font-family: var(--font-body);
+    font-size: 0.96rem;
+    padding: 11px 13px;
+    resize: vertical;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  select {
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a8977f' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    background-size: 16px;
+    padding-right: 36px;
+  }
+
+  textarea { min-height: 92px; }
+
+  input:focus, textarea:focus, select:focus {
+    outline: none;
+    border-color: var(--amber);
+    box-shadow: 0 0 0 3px rgba(232,163,61,0.12);
+  }
+
+  .row { margin-bottom: 18px; }
+  .row:last-child { margin-bottom: 0; }
+
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  @media (max-width: 480px) {
+    .two-col { grid-template-columns: 1fr; }
+  }
+
+  .hint-text {
+    font-size: 0.72rem;
+    color: var(--cream-dim);
+    margin-top: 6px;
+    line-height: 1.4;
+  }
+
+  button {
+    font-family: var(--font-body);
+    font-weight: 600;
+    font-size: 0.88rem;
+    letter-spacing: 0.02em;
+    border-radius: 7px;
+    border: 1px solid var(--border);
+    padding: 11px 20px;
+    background: var(--panel-2);
+    color: var(--cream);
+    transition: transform 0.12s ease, border-color 0.15s ease, background 0.15s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  button:hover:not(:disabled) { border-color: var(--border-lit); background: #332818; }
+  button:active:not(:disabled) { transform: translateY(1px) scale(0.98); }
+  button:disabled { opacity: 0.45; }
+
+  .primary {
+    background: linear-gradient(180deg, var(--leather), var(--leather-dark));
+    border-color: var(--leather);
+    color: #fff3e0;
+    width: 100%;
+    padding: 13px 20px;
+    font-size: 0.92rem;
+  }
+
+  .primary:hover:not(:disabled) { filter: brightness(1.1); }
+
+  .answer-block { display: none; }
+  .answer-block.show { display: block; }
+
+  .answer-label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+
+  .attempt-tag {
+    font-size: 0.68rem;
+    color: var(--amber);
+    letter-spacing: 0.1em;
+    font-family: var(--font-mono);
+    background: rgba(232,163,61,0.08);
+    border: 1px solid rgba(232,163,61,0.25);
+    padding: 3px 9px;
+    border-radius: 4px;
+  }
+
+  .answer-text {
+    line-height: 1.65;
+    font-size: 0.97rem;
+    border-left: 3px solid var(--border);
+    padding: 2px 0 2px 16px;
+    transition: border-color 0.2s ease;
+  }
+
+  .answer-text p { margin: 0 0 0.8em; }
+  .answer-text p:last-child { margin-bottom: 0; }
+  .answer-text ul, .answer-text ol { margin: 0 0 0.8em; padding-left: 1.3em; }
+  .answer-text li { margin-bottom: 0.3em; }
+  .answer-text strong { color: var(--amber-soft); }
+  .answer-text a { color: var(--amber); }
+  .answer-text code {
+    font-family: var(--font-mono);
+    font-size: 0.85em;
+    background: rgba(232,163,61,0.1);
+    border: 1px solid rgba(232,163,61,0.2);
+    border-radius: 4px;
+    padding: 1px 5px;
+  }
+  .answer-text pre {
+    background: #0c0a08;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px 14px;
+    overflow-x: auto;
+    margin: 0 0 0.9em;
+  }
+  .answer-text pre code { background: none; border: none; padding: 0; color: var(--cream); }
+  .answer-text table { border-collapse: collapse; width: 100%; margin: 0 0 0.9em; font-size: 0.9em; }
+  .answer-text th, .answer-text td { border: 1px solid var(--border); padding: 6px 10px; text-align: left; }
+  .answer-text th { background: var(--panel-2); color: var(--amber-soft); }
+  .answer-text blockquote { margin: 0 0 0.8em; padding-left: 12px; border-left: 2px solid var(--leather); color: var(--cream-dim); }
+  .answer-text h1, .answer-text h2, .answer-text h3 { font-family: var(--font-display); color: var(--amber-soft); margin: 0.6em 0 0.4em; }
+  .answer-text h1:first-child, .answer-text h2:first-child, .answer-text h3:first-child { margin-top: 0; }
+  .answer-text .katex { color: var(--cream); font-size: 1.05em; }
+  .answer-text .katex-display { overflow-x: auto; overflow-y: hidden; padding: 4px 0; margin: 0 0 0.8em; }
+
+  .answer-block.shaking .answer-text {
+    animation: shake 0.35s ease;
+    border-left-color: var(--crack-red);
+  }
+
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-7px); }
+    40% { transform: translateX(6px); }
+    60% { transform: translateX(-4px); }
+    80% { transform: translateX(3px); }
+  }
+
+  .divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border), transparent);
+    margin: 22px 0 18px;
+  }
+
+  .intensity-label { text-align: center; margin-bottom: 14px; }
+
+  .intensity-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
+
+  .intensity-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 16px 8px 14px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    min-height: 96px;
+  }
+
+  .intensity-btn:hover:not(:disabled) { border-color: var(--crack-red); background: #2e1c14; }
+  .intensity-btn:active:not(:disabled) { border-color: var(--crack-red); }
+
+  .intensity-btn .whip-icon { color: #e8926a; }
+  .intensity-btn[data-level="light"] .whip-icon { width: 20px; height: 20px; }
+  .intensity-btn[data-level="medium"] .whip-icon { width: 26px; height: 26px; }
+  .intensity-btn[data-level="full"] .whip-icon { width: 32px; height: 32px; }
+
+  .intensity-name { font-size: 0.8rem; font-weight: 600; color: var(--cream); }
+  .intensity-desc { font-size: 0.68rem; color: var(--cream-dim); text-align: center; line-height: 1.35; }
+
+  .accept-row { margin-top: 16px; text-align: center; }
+  .accept-row button { background: transparent; border-color: var(--border); color: var(--cream-dim); }
+  .accept-row button:hover:not(:disabled) { color: var(--cream); }
+
+  .status {
+    font-size: 0.8rem;
+    color: var(--cream-dim);
+    margin-top: 12px;
+    min-height: 1.2em;
+    text-align: center;
+  }
+
+  .status.error { color: #ff8a65; }
+
+  footer {
+    text-align: center;
+    color: var(--cream-dim);
+    font-size: 0.72rem;
+    margin-top: 24px;
+    line-height: 1.7;
+    font-family: var(--font-mono);
+  }
+
+  footer a { color: var(--amber); }
+
+  /* Touch devices get bigger tap targets automatically via pointer:coarse */
+  @media (pointer: coarse) {
+    .intensity-btn { padding: 18px 8px 16px; min-height: 108px; }
+    button { padding: 13px 20px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    #whipCanvas { display: none; }
+    .answer-block.shaking .answer-text { animation: none; }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="whipCanvas"></canvas>
+<div class="touch-hint" id="touchHint">🤠 drag to swing the whip — tap to crack it</div>
+
+<div class="wrap">
+  <header>
+    <svg class="rope" viewBox="0 0 200 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M10 30 Q 50 5, 90 30 T 170 30" stroke="#8b5a2b" stroke-width="4" stroke-linecap="round"/>
+      <path d="M10 30 Q 50 5, 90 30 T 170 30" stroke="#e8a33d" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="2 6"/>
+      <circle cx="170" cy="30" r="4" fill="#e8a33d"/>
+    </svg>
+    <h1>WhipCheck</h1>
+    <div class="tagline">move (or drag) to see the whip, click/tap to crack it</div>
+  </header>
+
+  <div class="card">
+    <div class="row">
+      <label for="providerSelect">Provider preset</label>
+      <select id="providerSelect">
+        <option value="groq">Groq (free, fast, no card)</option>
+        <option value="openai">OpenAI</option>
+        <option value="openrouter">OpenRouter</option>
+        <option value="custom">Custom (any OpenAI-compatible API)</option>
+      </select>
+    </div>
+    <div class="row two-col">
+      <div>
+        <label for="apiEndpoint">API Endpoint</label>
+        <input type="text" id="apiEndpoint" placeholder="https://.../v1/chat/completions" autocomplete="off">
+      </div>
+      <div>
+        <label for="apiKey">API Key</label>
+        <input type="password" id="apiKey" placeholder="your key" autocomplete="off">
+      </div>
+    </div>
+    <div class="row">
+      <label for="modelInput">Model</label>
+      <input type="text" id="modelInput" list="modelPresets" placeholder="model name" autocomplete="off">
+      <datalist id="modelPresets">
+        <option value="openai/gpt-oss-120b">
+        <option value="openai/gpt-oss-20b">
+        <option value="qwen/qwen3.6-27b">
+        <option value="gpt-4o-mini">
+        <option value="gpt-4o">
+        <option value="meta-llama/llama-3.3-70b-instruct:free">
+        <option value="anthropic/claude-3.5-haiku">
+      </datalist>
+      <div class="hint-text">Works with any provider that speaks the OpenAI-style <code style="font-family:var(--font-mono);background:rgba(232,163,61,0.1);padding:1px 5px;border-radius:4px;">/chat/completions</code> format — Groq, OpenAI, OpenRouter, Together, Fireworks, local Ollama/LM Studio, and more.</div>
+    </div>
+    <div class="row">
+      <label for="question">Your question</label>
+      <textarea id="question" placeholder="Ask anything..."></textarea>
+    </div>
+    <div class="row">
+      <button class="primary" id="askBtn">Ask</button>
+    </div>
+    <div class="status" id="askStatus"></div>
+  </div>
+
+  <div class="card answer-block" id="answerBlock">
+    <div class="answer-label">
+      <label style="margin:0;">Answer</label>
+      <span class="attempt-tag" id="attemptTag">attempt 1</span>
+    </div>
+    <div class="answer-text" id="answerText"></div>
+
+    <div class="divider"></div>
+
+    <div class="intensity-label">
+      <label style="margin:0;">Wrong? Choose how hard to crack the whip</label>
+    </div>
+    <div class="intensity-row">
+      <button class="intensity-btn" data-level="light">
+        <svg class="whip-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M4 20c2-1 3.5-2.5 4-5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <path d="M20 4c-3 0.7-6 2-8 5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+        <span class="intensity-name">Light Tap</span>
+        <span class="intensity-desc">Quick double-check for an obvious slip</span>
+      </button>
+      <button class="intensity-btn" data-level="medium">
+        <svg class="whip-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M3 21c2.5-1 4.5-3 5-6.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <path d="M21 3c-3.5 1-7 3-9.5 7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+        <span class="intensity-name">Firm Crack</span>
+        <span class="intensity-desc">Step-by-step re-check of the reasoning</span>
+      </button>
+      <button class="intensity-btn" data-level="full">
+        <svg class="whip-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M2 22c3-1 5.5-3.5 6-8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <path d="M22 2c-4 1.2-8.5 3.5-11.5 8.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+        <span class="intensity-name">Full Lash</span>
+        <span class="intensity-desc">Rebuilds the answer from scratch, checks edge cases</span>
+      </button>
+    </div>
+
+    <div class="accept-row">
+      <button id="acceptBtn">Looks right, stop here</button>
+    </div>
+    <div class="status" id="whipStatus"></div>
+  </div>
+
+  <footer>
+    Your API key stays in this browser's local storage and is sent directly<br>
+    to whichever endpoint you configure. Nothing passes through any server of ours — there isn't one.
+  </footer>
+</div>
+
+<script>
+/* =========================================================
+   Provider / model configuration
+   ========================================================= */
+const PROVIDER_PRESETS = {
+  groq:       { endpoint: "https://api.groq.com/openai/v1/chat/completions", model: "openai/gpt-oss-120b" },
+  openai:     { endpoint: "https://api.openai.com/v1/chat/completions",      model: "gpt-4o-mini" },
+  openrouter: { endpoint: "https://openrouter.ai/api/v1/chat/completions",   model: "meta-llama/llama-3.3-70b-instruct:free" },
+  custom:     { endpoint: "", model: "" }
+};
+
+const providerSelect = document.getElementById("providerSelect");
+const apiEndpointInput = document.getElementById("apiEndpoint");
+const apiKeyInput = document.getElementById("apiKey");
+const modelInput = document.getElementById("modelInput");
+const questionInput = document.getElementById("question");
+const askBtn = document.getElementById("askBtn");
+const askStatus = document.getElementById("askStatus");
+const answerBlock = document.getElementById("answerBlock");
+const answerText = document.getElementById("answerText");
+const attemptTag = document.getElementById("attemptTag");
+const acceptBtn = document.getElementById("acceptBtn");
+const whipStatus = document.getElementById("whipStatus");
+const intensityBtns = document.querySelectorAll(".intensity-btn");
+
+function applyPreset(providerId, force) {
+  const preset = PROVIDER_PRESETS[providerId] || PROVIDER_PRESETS.custom;
+  if (force || !apiEndpointInput.value.trim()) apiEndpointInput.value = preset.endpoint;
+  if (force || !modelInput.value.trim()) modelInput.value = preset.model;
+}
+
+const savedProvider = localStorage.getItem("whipcheck_provider") || "groq";
+providerSelect.value = savedProvider;
+apiEndpointInput.value = localStorage.getItem("whipcheck_api_endpoint") || "";
+apiKeyInput.value = localStorage.getItem("whipcheck_api_key") || "";
+modelInput.value = localStorage.getItem("whipcheck_selected_model") || "";
+applyPreset(savedProvider, false);
+
+providerSelect.addEventListener("change", () => {
+  applyPreset(providerSelect.value, true);
+  localStorage.setItem("whipcheck_provider", providerSelect.value);
+  localStorage.setItem("whipcheck_api_endpoint", apiEndpointInput.value.trim());
+  localStorage.setItem("whipcheck_selected_model", modelInput.value.trim());
+});
+apiEndpointInput.addEventListener("change", () => localStorage.setItem("whipcheck_api_endpoint", apiEndpointInput.value.trim()));
+apiKeyInput.addEventListener("change", () => localStorage.setItem("whipcheck_api_key", apiKeyInput.value.trim()));
+modelInput.addEventListener("change", () => localStorage.setItem("whipcheck_selected_model", modelInput.value.trim()));
+
+/* =========================================================
+   Markdown rendering (with a light defensive sanitizer)
+   ========================================================= */
+marked.setOptions({ breaks: true, gfm: true });
+
+function sanitizeHtml(html) {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/ on\w+="[^"]*"/gi, "")
+    .replace(/ on\w+='[^']*'/gi, "");
+}
+
+function renderMarkdown(rawText) {
+  // LaTeX math (\frac{...}, subscripts with _, etc.) gets mangled if we hand
+  // it straight to the markdown parser — underscores look like emphasis,
+  // backslashes get treated as escapes. So we pull math segments out first,
+  // run markdown on what's left, then drop in properly rendered KaTeX.
+  const mathBlocks = [];
+  const stash = (expr, display) => {
+    const token = `\u0000MATH${mathBlocks.length}\u0000`;
+    mathBlocks.push({ expr, display });
+    return token;
+  };
+
+  let processed = rawText
+    .replace(/\$\$([\s\S]+?)\$\$/g, (_, expr) => stash(expr, true))
+    .replace(/\\\[([\s\S]+?)\\\]/g, (_, expr) => stash(expr, true))
+    .replace(/\\\(([\s\S]+?)\\\)/g, (_, expr) => stash(expr, false))
+    .replace(/\$([^\$\n]+?)\$/g, (_, expr) => stash(expr, false));
+
+  let html = sanitizeHtml(marked.parse(processed));
+
+  mathBlocks.forEach((block, i) => {
+    let rendered;
+    try {
+      rendered = katex.renderToString(block.expr, { displayMode: block.display, throwOnError: false });
+    } catch (e) {
+      rendered = block.display ? `$$${block.expr}$$` : `$${block.expr}$`;
+    }
+    html = html.split(`\u0000MATH${i}\u0000`).join(rendered);
+  });
+
+  return html;
+}
+
+/* =========================================================
+   Streaming chat call — works with any OpenAI-compatible API
+   ========================================================= */
+let conversationHistory = [];
+let attemptCount = 0;
+
+const RECHECK_PROMPTS = {
+  light: "Quickly double-check your last answer for any obvious mistake. " +
+    "If you find one, correct it. Keep your response brief.",
+  medium: "Re-examine your last answer carefully. Go through your reasoning step " +
+    "by step, check your assumptions and any calculations, and correct any errors " +
+    "you find. If it was already correct, confirm that and briefly say why.",
+  full: "Treat your last answer as unverified. Rebuild it from scratch with careful, " +
+    "step-by-step reasoning. Verify every assumption and intermediate step, consider " +
+    "at least one alternative approach or edge case, then give your final corrected " +
+    "answer. Explicitly note what, if anything, was wrong with the previous attempt."
+};
+
+async function streamChat(endpoint, key, model, history, onDelta) {
+  const res = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${key}`
+    },
+    body: JSON.stringify({ model, messages: history, stream: true })
+  });
+
+  if (!res.ok) {
+    const errBody = await res.text();
+    if (res.status === 401) throw new Error("Invalid API key or endpoint — double check both.");
+    if (res.status === 429) throw new Error("Rate limit hit — wait a moment and try again.");
+    if (res.status === 404) throw new Error("Endpoint not found — check the API Endpoint URL.");
+    throw new Error(`API error ${res.status}: ${errBody.slice(0, 200)}`);
+  }
+  if (!res.body) throw new Error("This API didn't return a streamable response.");
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let fullText = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop();
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith("data:")) continue;
+      const payload = trimmed.slice(5).trim();
+      if (payload === "[DONE]") continue;
+
+      try {
+        const json = JSON.parse(payload);
+        const delta = json?.choices?.[0]?.delta?.content;
+        if (delta) {
+          fullText += delta;
+          onDelta(fullText);
+        }
+      } catch (e) {
+        // Incomplete SSE chunk — the rest arrives in the next read().
+      }
+    }
+  }
+
+  if (!fullText) throw new Error("No answer returned — the response may have been empty or the stream was cut short.");
+  return fullText;
+}
+
+function setBusy(busy) {
+  askBtn.disabled = busy;
+  acceptBtn.disabled = busy;
+  intensityBtns.forEach(b => b.disabled = busy);
+}
+
+function beginAnswer(attempt) {
+  attemptTag.textContent = `attempt ${attempt}`;
+  answerText.innerHTML = "";
+  answerBlock.classList.add("show");
+  whipStatus.textContent = "";
+  whipStatus.classList.remove("error");
+}
+
+function showAnswerChunk(rawText) {
+  answerText.innerHTML = renderMarkdown(rawText);
+}
+
+function currentConfig() {
+  return {
+    endpoint: apiEndpointInput.value.trim(),
+    key: apiKeyInput.value.trim(),
+    model: modelInput.value.trim()
+  };
+}
+
+function validateConfig(statusEl) {
+  const { endpoint, key, model } = currentConfig();
+  if (!endpoint) { statusEl.textContent = "Add an API endpoint first."; statusEl.classList.add("error"); return null; }
+  if (!key) { statusEl.textContent = "Add your API key first."; statusEl.classList.add("error"); return null; }
+  if (!model) { statusEl.textContent = "Enter a model name first."; statusEl.classList.add("error"); return null; }
+  return { endpoint, key, model };
+}
+
+async function ask() {
+  const question = questionInput.value.trim();
+  askStatus.classList.remove("error");
+
+  const cfg = validateConfig(askStatus);
+  if (!cfg) return;
+  if (!question) { askStatus.textContent = "Type a question first."; askStatus.classList.add("error"); return; }
+
+  askStatus.textContent = "Thinking...";
+  setBusy(true);
+
+  conversationHistory = [{ role: "user", content: question }];
+  attemptCount = 1;
+  beginAnswer(attemptCount);
+
+  try {
+    const answer = await streamChat(cfg.endpoint, cfg.key, cfg.model, conversationHistory, showAnswerChunk);
+    conversationHistory.push({ role: "assistant", content: answer });
+    askStatus.textContent = "";
+  } catch (err) {
+    askStatus.textContent = err.message;
+    askStatus.classList.add("error");
+  } finally {
+    setBusy(false);
+  }
+}
+
+async function crackWhip(level) {
+  whipStatus.classList.remove("error");
+  const cfg = validateConfig(whipStatus);
+  if (!cfg) return;
+
+  answerBlock.classList.remove("shaking");
+  void answerBlock.offsetWidth;
+  answerBlock.classList.add("shaking");
+
+  whipStatus.textContent = "Re-checking carefully...";
+  setBusy(true);
+
+  conversationHistory.push({ role: "user", content: RECHECK_PROMPTS[level] });
+  attemptCount += 1;
+  beginAnswer(attemptCount);
+
+  try {
+    const answer = await streamChat(cfg.endpoint, cfg.key, cfg.model, conversationHistory, showAnswerChunk);
+    conversationHistory.push({ role: "assistant", content: answer });
+    whipStatus.textContent = "";
+  } catch (err) {
+    whipStatus.textContent = err.message;
+    whipStatus.classList.add("error");
+  } finally {
+    setBusy(false);
+  }
+}
+
+askBtn.addEventListener("click", ask);
+questionInput.addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) ask(); });
+acceptBtn.addEventListener("click", () => {
+  whipStatus.textContent = "Good — accepted as final.";
+  whipStatus.classList.remove("error");
+});
+intensityBtns.forEach(btn => {
+  btn.addEventListener("click", () => crackWhip(btn.dataset.level));
+});
+
+/* =========================================================
+   Cursor/touch-following whip: canvas physics + crack visual/audio
+   Uses Pointer Events so the same code drives mouse, touch, and pen.
+   ========================================================= */
+const canvas = document.getElementById("whipCanvas");
+const ctx = canvas.getContext("2d");
+const touchHint = document.getElementById("touchHint");
+function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+resizeCanvas();
+window.addEventListener("resize", resizeCanvas);
+
+const SEGMENTS = 16;
+let mouse = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+let lastFramePos = { x: mouse.x, y: mouse.y };
+let velocity = { x: 0, y: 1 };
+let points = Array.from({ length: SEGMENTS }, () => ({ x: mouse.x, y: mouse.y }));
+let crackAnim = null;
+
+let isTouchMode = false;
+let pointerDown = false;
+let opacity = 0; // whip fades in on first interaction rather than sitting static on load
+
+function snapPointsTo(x, y) {
+  for (let i = 0; i < SEGMENTS; i++) { points[i].x = x; points[i].y = y; }
+  lastFramePos = { x, y };
+}
+
+window.addEventListener("pointermove", (e) => {
+  mouse.x = e.clientX;
+  mouse.y = e.clientY;
+  if (e.pointerType === "mouse" && !document.documentElement.classList.contains("whip-cursor")) {
+    document.documentElement.classList.add("whip-cursor");
+  }
+}, { passive: true });
+
+window.addEventListener("pointerdown", (e) => {
+  if (e.pointerType === "mouse" && e.button !== 0) return;
+  pointerDown = true;
+
+  if (e.pointerType === "touch") {
+    isTouchMode = true;
+    mouse.x = e.clientX;
+    mouse.y = e.clientY;
+    snapPointsTo(e.clientX, e.clientY); // avoid a fly-in animation across the screen on first touch
+    maybeShowTouchHint();
+  }
+
+  // The whip only cracks when Ask or one of the three recheck buttons is
+  // pressed — everywhere else, moving/dragging just moves the whip around
+  // without triggering a crack (visual or sound).
+  const intensityLevel = e.target.closest?.(".intensity-btn")?.dataset?.level;
+  const isAskButton = e.target.closest?.("#askBtn");
+  if (intensityLevel) {
+    triggerCrack(intensityLevel);
+  } else if (isAskButton) {
+    triggerCrack("ambient");
+  }
+}, { passive: true });
+
+window.addEventListener("pointerup", () => { pointerDown = false; });
+window.addEventListener("pointercancel", () => { pointerDown = false; });
+
+function maybeShowTouchHint() {
+  if (localStorage.getItem("whipcheck_touch_hint_seen")) return;
+  touchHint.classList.add("show");
+  localStorage.setItem("whipcheck_touch_hint_seen", "1");
+  setTimeout(() => touchHint.classList.remove("show"), 3200);
+}
+
+const CRACK_CFG = {
+  ambient: { duration: 220, magnitude: 55, sound: "light" },
+  light:   { duration: 240, magnitude: 70,  sound: "light" },
+  medium:  { duration: 300, magnitude: 110, sound: "medium" },
+  full:    { duration: 380, magnitude: 165, sound: "full" }
+};
+
+function triggerCrack(level) {
+  const cfg = CRACK_CFG[level] || CRACK_CFG.ambient;
+  const len = Math.hypot(velocity.x, velocity.y);
+  const dir = len > 0.5 ? { x: velocity.x / len, y: velocity.y / len } : { x: 0.3, y: 1 };
+  crackAnim = { start: performance.now(), duration: cfg.duration, dir, magnitude: cfg.magnitude };
+  playCrackSound(cfg.sound);
+}
+
+function animateWhip() {
+  velocity = { x: mouse.x - lastFramePos.x, y: mouse.y - lastFramePos.y };
+  lastFramePos = { x: mouse.x, y: mouse.y };
+
+  points[0].x += (mouse.x - points[0].x) * 0.65;
+  points[0].y += (mouse.y - points[0].y) * 0.65;
+
+  for (let i = 1; i < SEGMENTS; i++) {
+    const lag = Math.max(0.42 - i * 0.018, 0.1);
+    points[i].x += (points[i - 1].x - points[i].x) * lag;
+    points[i].y += (points[i - 1].y - points[i].y) * lag;
+  }
+
+  let crackT = null;
+  if (crackAnim) {
+    const t = (performance.now() - crackAnim.start) / crackAnim.duration;
+    if (t < 1) {
+      crackT = t;
+      const snap = Math.sin(t * Math.PI) * (1 - t * 0.3) * crackAnim.magnitude;
+      const tip = points[SEGMENTS - 1];
+      tip.x += crackAnim.dir.x * snap;
+      tip.y += crackAnim.dir.y * snap;
+      const tip2 = points[SEGMENTS - 2];
+      tip2.x += crackAnim.dir.x * snap * 0.5;
+      tip2.y += crackAnim.dir.y * snap * 0.5;
+    } else {
+      crackAnim = null;
+    }
+  }
+
+  // Desktop: whip is always visible once the mouse has moved.
+  // Touch: whip fades in while dragging/tapping, fades out ~600ms after release
+  // so it doesn't sit frozen on screen when there's no cursor to "own" it.
+  const targetOpacity = (!isTouchMode || pointerDown || crackAnim) ? 1 : 0;
+  opacity += (targetOpacity - opacity) * 0.1;
+
+  drawWhip(crackT);
+  requestAnimationFrame(animateWhip);
+}
+
+function drawWhip(crackT) {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (opacity < 0.01) return;
+  ctx.globalAlpha = opacity;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+
+  for (let i = 0; i < SEGMENTS - 1; i++) {
+    const taper = 1 - i / SEGMENTS;
+    const w = Math.max(0.8, 7 * taper);
+    ctx.beginPath();
+    ctx.moveTo(points[i].x, points[i].y);
+    ctx.lineTo(points[i + 1].x, points[i + 1].y);
+    ctx.strokeStyle = i < 3 ? "#5c3a1e" : `rgba(139,90,43,${0.55 + 0.45 * taper})`;
+    ctx.lineWidth = w;
+    ctx.stroke();
+  }
+
+  ctx.beginPath();
+  ctx.arc(points[0].x, points[0].y, 5, 0, Math.PI * 2);
+  ctx.fillStyle = "#2b1d12";
+  ctx.fill();
+
+  const tip = points[SEGMENTS - 1];
+  ctx.beginPath();
+  ctx.arc(tip.x, tip.y, 1.6, 0, Math.PI * 2);
+  ctx.fillStyle = "#3d2914";
+  ctx.fill();
+
+  if (crackT !== null && crackT < 0.45) {
+    const fade = 1 - crackT / 0.45;
+    ctx.beginPath();
+    ctx.arc(tip.x, tip.y, 16 * fade, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(232,163,61,${0.55 * fade})`;
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(tip.x, tip.y, 5 * fade, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255,235,205,${0.8 * fade})`;
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+requestAnimationFrame(animateWhip);
+
+/* =========================================================
+   Whip-crack sound synthesis (Web Audio, no audio files)
+   ========================================================= */
+let audioCtx = null;
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === "suspended") audioCtx.resume();
+  return audioCtx;
+}
+
+function makeNoiseBuffer(ctx, duration) {
+  const size = Math.max(1, Math.floor(ctx.sampleRate * duration));
+  const buffer = ctx.createBuffer(1, size, ctx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < size; i++) data[i] = Math.random() * 2 - 1;
+  return buffer;
+}
+
+const SOUND_CFG = {
+  light:  { swishDur: 0.05, swishVol: 0.07, crackVol: 0.20, crackDur: 0.03,  f0: 700, f1: 2600, delay: 0.05, thud: false },
+  medium: { swishDur: 0.09, swishVol: 0.13, crackVol: 0.34, crackDur: 0.045, f0: 450, f1: 3200, delay: 0.08, thud: true  },
+  full:   { swishDur: 0.15, swishVol: 0.20, crackVol: 0.52, crackDur: 0.065, f0: 300, f1: 4200, delay: 0.13, thud: true  }
+};
+
+function playCrackSound(level) {
+  try {
+    const cfg = SOUND_CFG[level] || SOUND_CFG.medium;
+    const ctx = getAudioCtx();
+    const t0 = ctx.currentTime;
+    const noiseBuf = makeNoiseBuffer(ctx, cfg.delay + cfg.crackDur + 0.05);
+
+    const swishSrc = ctx.createBufferSource();
+    swishSrc.buffer = noiseBuf;
+    const swishFilter = ctx.createBiquadFilter();
+    swishFilter.type = "bandpass";
+    swishFilter.Q.value = 5;
+    swishFilter.frequency.setValueAtTime(cfg.f0, t0);
+    swishFilter.frequency.exponentialRampToValueAtTime(cfg.f1, t0 + cfg.delay);
+    const swishGain = ctx.createGain();
+    swishGain.gain.setValueAtTime(0.0001, t0);
+    swishGain.gain.exponentialRampToValueAtTime(cfg.swishVol, t0 + cfg.delay * 0.7);
+    swishGain.gain.exponentialRampToValueAtTime(0.0001, t0 + cfg.delay + 0.02);
+    swishSrc.connect(swishFilter).connect(swishGain).connect(ctx.destination);
+    swishSrc.start(t0);
+    swishSrc.stop(t0 + cfg.delay + 0.05);
+
+    const crackStart = t0 + cfg.delay;
+    const crackSrc = ctx.createBufferSource();
+    crackSrc.buffer = noiseBuf;
+    const crackFilter = ctx.createBiquadFilter();
+    crackFilter.type = "highpass";
+    crackFilter.frequency.value = 1000;
+    const crackGain = ctx.createGain();
+    crackGain.gain.setValueAtTime(cfg.crackVol, crackStart);
+    crackGain.gain.exponentialRampToValueAtTime(0.001, crackStart + cfg.crackDur);
+    crackSrc.connect(crackFilter).connect(crackGain).connect(ctx.destination);
+    crackSrc.start(crackStart);
+    crackSrc.stop(crackStart + cfg.crackDur + 0.01);
+
+    if (cfg.thud) {
+      const osc = ctx.createOscillator();
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(130, crackStart);
+      osc.frequency.exponentialRampToValueAtTime(38, crackStart + cfg.crackDur * 1.6);
+      const oscGain = ctx.createGain();
+      oscGain.gain.setValueAtTime(cfg.crackVol * 0.4, crackStart);
+      oscGain.gain.exponentialRampToValueAtTime(0.001, crackStart + cfg.crackDur * 1.6);
+      osc.connect(oscGain).connect(ctx.destination);
+      osc.start(crackStart);
+      osc.stop(crackStart + cfg.crackDur * 1.6 + 0.01);
+    }
+  } catch (e) {
+    // Audio unavailable (e.g. autoplay policy before first interaction) — safe to ignore.
+  }
+}
+</script>
+
+</body>
+</html>
